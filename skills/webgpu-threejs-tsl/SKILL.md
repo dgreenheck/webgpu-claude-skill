@@ -29,6 +29,7 @@ material.colorNode = color(0xff0000).mul(oscSine(time));
 - `docs/post-processing.md` - Built-in and custom effects
 - `docs/wgsl-integration.md` - Custom WGSL functions
 - `docs/device-loss.md` - Handling GPU device loss and recovery
+- `docs/limits-and-features.md` - WebGPU device limits and optional features
 
 ### Examples
 - `examples/basic-setup.js` - Minimal WebGPU project

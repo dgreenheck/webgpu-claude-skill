@@ -320,6 +320,37 @@ renderer.backend.device.destroy();
 | `numWorkgroups` | Number of workgroups dispatched (uvec3) |
 | `subgroupSize` | Size of the subgroup |
 
+## Device Limits
+
+WebGPU devices use **default minimums** unless you request higher limits. This is critical for large buffers.
+
+```javascript
+// Three.js: pass requiredLimits to the renderer
+const renderer = new THREE.WebGPURenderer({
+  requiredLimits: {
+    maxBufferSize: 1024 * 1024 * 1024,            // 1 GiB
+    maxStorageBufferBindingSize: 1024 * 1024 * 512, // 512 MiB
+  },
+});
+await renderer.init();
+```
+
+| Limit | Default | Common Need |
+|-------|---------|-------------|
+| `maxBufferSize` | 256 MiB | Large vertex/storage buffers |
+| `maxStorageBufferBindingSize` | 128 MiB | Large compute buffers |
+| `maxStorageBuffersPerShaderStage` | 8 | Many storage buffers |
+
+**Check before requesting:**
+```javascript
+const adapter = await navigator.gpu?.requestAdapter();
+if (adapter.limits.maxBufferSize >= desiredSize) {
+  // Safe to request
+}
+```
+
+See `docs/limits-and-features.md` for full details.
+
 ## Version Notes
 
 **r178+:**
