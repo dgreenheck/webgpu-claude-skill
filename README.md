@@ -2,6 +2,8 @@
 
 An Agent Skill for developing WebGPU-enabled Three.js applications using TSL (Three.js Shading Language).
 
+**Last updated:** April 1, 2026 — aligned with Three.js r183+ API changes.
+
 ## Overview
 
 This skill provides Claude with comprehensive knowledge for:

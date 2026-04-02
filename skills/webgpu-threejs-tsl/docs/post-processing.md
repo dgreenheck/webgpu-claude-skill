@@ -2,6 +2,8 @@
 
 Post-processing applies effects to the rendered image. TSL provides both built-in effects and the ability to create custom effects.
 
+> **Note:** `PostProcessing` was renamed to `RenderPipeline` in r183. `PostProcessing` still works as a compatibility wrapper but is deprecated.
+
 ## Basic Setup
 
 ```javascript
@@ -12,19 +14,19 @@ import { pass } from 'three/tsl';
 const renderer = new THREE.WebGPURenderer();
 await renderer.init();
 
-// Create post-processing
-const postProcessing = new THREE.PostProcessing(renderer);
+// Create render pipeline (formerly PostProcessing, renamed in r183)
+const renderPipeline = new THREE.RenderPipeline(renderer);
 
 // Create scene pass
 const scenePass = pass(scene, camera);
 const scenePassColor = scenePass.getTextureNode('output');
 
 // Output (passthrough)
-postProcessing.outputNode = scenePassColor;
+renderPipeline.outputNode = scenePassColor;
 
 // Render with post-processing
 function animate() {
-  postProcessing.render();  // Not renderer.render()
+  renderPipeline.render();  // Not renderer.render()
 }
 ```
 
@@ -47,7 +49,7 @@ bloomPass.strength.value = 1.0;    // Bloom intensity
 bloomPass.radius.value = 0.5;      // Blur radius
 
 // Combine original + bloom
-postProcessing.outputNode = scenePassColor.add(bloomPass);
+renderPipeline.outputNode = scenePassColor.add(bloomPass);
 ```
 
 ### Gaussian Blur
@@ -55,16 +57,18 @@ postProcessing.outputNode = scenePassColor.add(bloomPass);
 ```javascript
 import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js';
 
-const blurred = gaussianBlur(scenePassColor, vec2(2.0)); // Blur strength
-postProcessing.outputNode = blurred;
+const blurred = gaussianBlur(scenePassColor, vec2(2.0)); // Blur strength (sigma)
+renderPipeline.outputNode = blurred;
 ```
+
+> **Note (r177):** Sigma values were rescaled — double previous sigma values to get the same blur strength. Also, `resolution` was renamed to `resolutionScale` (now a scalar, not a Vector2) in r180.
 
 ### FXAA (Anti-aliasing)
 
 ```javascript
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 
-postProcessing.outputNode = fxaa(scenePassColor);
+renderPipeline.outputNode = fxaa(scenePassColor);
 ```
 
 ### SMAA (Anti-aliasing)
@@ -72,7 +76,7 @@ postProcessing.outputNode = fxaa(scenePassColor);
 ```javascript
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 
-postProcessing.outputNode = smaa(scenePassColor);
+renderPipeline.outputNode = smaa(scenePassColor);
 ```
 
 ### Depth of Field
@@ -82,16 +86,15 @@ import { dof } from 'three/addons/tsl/display/DepthOfFieldNode.js';
 
 const scenePass = pass(scene, camera);
 const colorNode = scenePass.getTextureNode('output');
-const depthNode = scenePass.getTextureNode('depth');
+const viewZNode = scenePass.getViewZNode();
 
-const dofPass = dof(colorNode, depthNode, {
-  focus: 5.0,      // Focus distance
-  aperture: 0.025, // Aperture size
-  maxblur: 0.01    // Maximum blur
-});
+// dof(colorNode, viewZNode, focusDistance, focalLength, bokehScale)
+const dofPass = dof(colorNode, viewZNode, 5.0, 25.0, 1.0);
 
-postProcessing.outputNode = dofPass;
+renderPipeline.outputNode = dofPass;
 ```
+
+> **Note:** The DOF API was completely reimplemented in r181. The old `dof(color, depth, { focus, aperture, maxblur })` options-object signature no longer works.
 
 ### Motion Blur
 
@@ -102,7 +105,7 @@ const scenePass = pass(scene, camera);
 const velocityPass = scenePass.getTextureNode('velocity');
 
 const motionBlurPass = motionBlur(scenePassColor, velocityPass);
-postProcessing.outputNode = motionBlurPass;
+renderPipeline.outputNode = motionBlurPass;
 ```
 
 ### Screen Space Reflections (SSR)
@@ -116,7 +119,7 @@ const depthNode = scenePass.getTextureNode('depth');
 const normalNode = scenePass.getTextureNode('normal');
 
 const ssrPass = ssr(colorNode, depthNode, normalNode, camera);
-postProcessing.outputNode = ssrPass;
+renderPipeline.outputNode = ssrPass;
 ```
 
 ### Ambient Occlusion (SSAO)
@@ -129,7 +132,7 @@ const depthNode = scenePass.getTextureNode('depth');
 const normalNode = scenePass.getTextureNode('normal');
 
 const aoPass = ao(depthNode, normalNode, camera);
-postProcessing.outputNode = scenePassColor.mul(aoPass);
+renderPipeline.outputNode = scenePassColor.mul(aoPass);
 ```
 
 ### Film Grain
@@ -141,7 +144,7 @@ const filmPass = film(scenePassColor, {
   intensity: 0.5,
   grayscale: false
 });
-postProcessing.outputNode = filmPass;
+renderPipeline.outputNode = filmPass;
 ```
 
 ### Outline
@@ -157,7 +160,7 @@ const outlinePass = outline(scene, camera, selectedObjects, {
   hiddenEdgeColor: new THREE.Color(0x190a05)
 });
 
-postProcessing.outputNode = scenePassColor.add(outlinePass);
+renderPipeline.outputNode = scenePassColor.add(outlinePass);
 ```
 
 ### Chromatic Aberration
@@ -168,7 +171,7 @@ import { chromaticAberration } from 'three/addons/tsl/display/ChromaticAberratio
 const caPass = chromaticAberration(scenePassColor, {
   offset: vec2(0.002, 0.002)
 });
-postProcessing.outputNode = caPass;
+renderPipeline.outputNode = caPass;
 ```
 
 ## Color Adjustments
@@ -178,7 +181,7 @@ postProcessing.outputNode = caPass;
 ```javascript
 import { grayscale } from 'three/tsl';
 
-postProcessing.outputNode = grayscale(scenePassColor);
+renderPipeline.outputNode = grayscale(scenePassColor);
 ```
 
 ### Saturation
@@ -187,7 +190,7 @@ postProcessing.outputNode = grayscale(scenePassColor);
 import { saturation } from 'three/tsl';
 
 // 0 = grayscale, 1 = normal, 2 = oversaturated
-postProcessing.outputNode = saturation(scenePassColor, 1.5);
+renderPipeline.outputNode = saturation(scenePassColor, 1.5);
 ```
 
 ### Hue Shift
@@ -196,7 +199,7 @@ postProcessing.outputNode = saturation(scenePassColor, 1.5);
 import { hue } from 'three/tsl';
 
 // Shift hue by radians
-postProcessing.outputNode = hue(scenePassColor, time.mul(0.5));
+renderPipeline.outputNode = hue(scenePassColor, time.mul(0.5));
 ```
 
 ### Vibrance
@@ -204,7 +207,7 @@ postProcessing.outputNode = hue(scenePassColor, time.mul(0.5));
 ```javascript
 import { vibrance } from 'three/tsl';
 
-postProcessing.outputNode = vibrance(scenePassColor, 0.5);
+renderPipeline.outputNode = vibrance(scenePassColor, 0.5);
 ```
 
 ### Posterize
@@ -213,7 +216,7 @@ postProcessing.outputNode = vibrance(scenePassColor, 0.5);
 import { posterize } from 'three/tsl';
 
 // Reduce color levels
-postProcessing.outputNode = posterize(scenePassColor, 8);
+renderPipeline.outputNode = posterize(scenePassColor, 8);
 ```
 
 ### Sepia
@@ -221,7 +224,7 @@ postProcessing.outputNode = posterize(scenePassColor, 8);
 ```javascript
 import { sepia } from 'three/addons/tsl/display/SepiaNode.js';
 
-postProcessing.outputNode = sepia(scenePassColor);
+renderPipeline.outputNode = sepia(scenePassColor);
 ```
 
 ### 3D LUT
@@ -230,7 +233,7 @@ postProcessing.outputNode = sepia(scenePassColor);
 import { lut3D } from 'three/addons/tsl/display/Lut3DNode.js';
 
 const lutTexture = new THREE.Data3DTexture(lutData, size, size, size);
-postProcessing.outputNode = lut3D(scenePassColor, lutTexture, size);
+renderPipeline.outputNode = lut3D(scenePassColor, lutTexture, size);
 ```
 
 ## Custom Post-Processing
@@ -249,7 +252,7 @@ const customEffect = Fn(() => {
   return color;
 });
 
-postProcessing.outputNode = customEffect();
+renderPipeline.outputNode = customEffect();
 ```
 
 ### Vignette Effect
@@ -269,7 +272,7 @@ const vignette = Fn(() => {
   return color;
 });
 
-postProcessing.outputNode = vignette();
+renderPipeline.outputNode = vignette();
 ```
 
 ### CRT/Scanline Effect
@@ -304,7 +307,7 @@ const crtEffect = Fn(() => {
 });
 
 // Note: For this effect, apply after scene rendering
-postProcessing.outputNode = crtEffect();
+renderPipeline.outputNode = crtEffect();
 ```
 
 ### Pixelate Effect
@@ -318,7 +321,7 @@ const pixelate = Fn(() => {
   return texture(scenePassColor, pixelUV);
 });
 
-postProcessing.outputNode = pixelate();
+renderPipeline.outputNode = pixelate();
 ```
 
 ### Edge Detection (Sobel)
@@ -347,7 +350,7 @@ const sobelEdge = Fn(() => {
   return vec4(vec3(edge), 1.0);
 });
 
-postProcessing.outputNode = sobelEdge();
+renderPipeline.outputNode = sobelEdge();
 ```
 
 ## Multiple Render Targets (MRT)
@@ -380,7 +383,7 @@ Bloom only emissive objects by rendering emissive to a separate target:
 import { pass, mrt, output, emissive } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
-const postProcessing = new THREE.PostProcessing(renderer);
+const renderPipeline = new THREE.RenderPipeline(renderer);
 const scenePass = pass(scene, camera);
 
 // Render both color and emissive to separate targets
@@ -400,7 +403,7 @@ bloomPass.strength.value = 1.5;
 bloomPass.radius.value = 0.5;
 
 // Combine: original color + bloomed emissive
-postProcessing.outputNode = colorTexture.add(bloomPass);
+renderPipeline.outputNode = colorTexture.add(bloomPass);
 ```
 
 This approach prevents non-emissive bright areas (like white surfaces) from blooming.
@@ -429,7 +432,7 @@ output = output.mul(vignette);
 // 4. Apply FXAA
 output = fxaa(output);
 
-postProcessing.outputNode = output;
+renderPipeline.outputNode = output;
 ```
 
 ## Conditional Effects
@@ -442,7 +445,7 @@ const conditionalEffect = Fn(() => {
   return select(effectEnabled, grayscale(color), color);
 });
 
-postProcessing.outputNode = conditionalEffect();
+renderPipeline.outputNode = conditionalEffect();
 
 // Toggle at runtime
 effectEnabled.value = false;
@@ -465,11 +468,48 @@ const transitionPass = transition(
   texture(transitionTexture)  // Optional transition texture
 );
 
-postProcessing.outputNode = transitionPass;
+renderPipeline.outputNode = transitionPass;
 
 // Animate transition
 function animate() {
   transitionProgress.value = Math.sin(time) * 0.5 + 0.5;
-  postProcessing.render();
+  renderPipeline.render();
 }
+```
+
+## Additional Effects (r182+)
+
+These effects were added in recent Three.js releases:
+
+```javascript
+// Volumetric god rays (r183)
+import { godrays } from 'three/addons/tsl/display/GodraysNode.js';
+const godraysPass = godrays(scenePassColor, depthNode, camera, lightPosition);
+
+// Retro/CRT effect (r183)
+import { retroPass } from 'three/addons/tsl/display/RetroNode.js';
+
+// Anamorphic lens flare
+import { anamorphic } from 'three/addons/tsl/display/AnamorphicNode.js';
+const anamorphicPass = anamorphic(scenePassColor);
+
+// Lens flare
+import { lensflare } from 'three/addons/tsl/display/LensflareNode.js';
+
+// Denoising
+import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
+
+// Screen-space global illumination
+import { ssgi } from 'three/addons/tsl/display/SSGINode.js';
+
+// Temporal anti-aliasing (replaces FXAA/SMAA for better quality)
+import { traa } from 'three/addons/tsl/display/TRAANode.js';
+
+// Alternative blur modes
+import { boxBlur } from 'three/addons/tsl/display/BoxBlurNode.js';       // Mobile-friendly
+import { hashBlur } from 'three/addons/tsl/display/HashBlurNode.js';     // Single-pass
+import { bilateralBlur } from 'three/addons/tsl/display/BilateralBlurNode.js'; // Edge-preserving
+
+// 3D texture sampling (r182)
+import { texture3DLoad, texture3DLevel } from 'three/tsl';
 ```

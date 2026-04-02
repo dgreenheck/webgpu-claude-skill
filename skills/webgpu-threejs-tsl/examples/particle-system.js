@@ -83,8 +83,8 @@ async function init() {
   document.body.appendChild(renderer.domElement);
   await renderer.init();
 
-  // Initialize particles
-  await renderer.computeAsync(computeInit);
+  // Initialize particles (renderer already initialized above)
+  renderer.compute(computeInit);
 
   // Controls
   controls = new OrbitControls(camera, renderer.domElement);

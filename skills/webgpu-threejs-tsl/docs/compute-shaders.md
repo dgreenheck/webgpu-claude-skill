@@ -147,8 +147,21 @@ const computeShader = Fn(() => {
   position.x.addAssign(0.01);
 })().compute(count);
 
-// Execute
+// Initialize renderer first, then use synchronous compute
+await renderer.init();
 renderer.compute(computeShader);
+```
+
+### Read-Only Storage Buffers
+
+```javascript
+import { attributeArray } from 'three/tsl';
+
+// attributeArray() creates read-only storage buffers (vs instancedArray for read-write)
+const lookupTable = attributeArray(data, 'float');
+
+// Use in compute or materials - data is read-only on GPU
+const value = lookupTable.element(index);
 ```
 
 ## Storage Buffers
@@ -218,8 +231,8 @@ const computeInit = Fn(() => {
   velocity.assign(vec3(0));
 })().compute(count);
 
-// Run once at startup
-await renderer.computeAsync(computeInit);
+// Run once at startup (after await renderer.init())
+renderer.compute(computeInit);
 ```
 
 ### Physics Update
@@ -339,9 +352,38 @@ const computeBoids = Fn(() => {
 
 ```javascript
 // Default workgroup size is typically 64 or 256
+// Pass workgroup size as an array
 const computeShader = Fn(() => {
   // shader code
-})().compute(count, { workgroupSize: 64 });
+})().compute(count, [64]);
+
+// 2D workgroup
+const compute2D = Fn(() => {
+  // shader code
+})().compute(width * height, [8, 8]);
+```
+
+### Compute Builtins
+
+```javascript
+import {
+  globalId, localId, workgroupId, numWorkgroups, subgroupSize,
+  invocationLocalIndex, invocationSubgroupIndex, subgroupIndex
+} from 'three/tsl';
+
+const computeShader = Fn(() => {
+  // Global invocation ID across all workgroups
+  const gid = globalId;
+
+  // Local invocation ID within the workgroup
+  const lid = localId;
+
+  // Workgroup ID
+  const wid = workgroupId;
+
+  // Total number of workgroups
+  const nwg = numWorkgroups;
+})().compute(count, [64]);
 ```
 
 ### Barriers
@@ -416,16 +458,19 @@ scene.add(points);
 ## Execution Methods
 
 ```javascript
-// Synchronous compute (blocks until complete)
-renderer.compute(computeShader);
+// IMPORTANT: Always initialize the renderer first
+await renderer.init();
 
-// Asynchronous compute (returns promise)
-await renderer.computeAsync(computeShader);
+// Synchronous compute (preferred since r181)
+renderer.compute(computeShader);
 
 // Multiple computes
 renderer.compute(computeInit);
 renderer.compute(computePhysics);
 renderer.compute(computeCollisions);
+
+// Note: computeAsync() is deprecated since r181.
+// Use await renderer.init() at startup, then renderer.compute() synchronously.
 ```
 
 ## Reading Back Data (GPU to CPU)
@@ -521,8 +566,8 @@ geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Ar
 const points = new THREE.Points(geometry, material);
 scene.add(points);
 
-// Init
-await renderer.computeAsync(computeInit);
+// Init (after await renderer.init())
+renderer.compute(computeInit);
 
 // Animation loop
 function animate() {

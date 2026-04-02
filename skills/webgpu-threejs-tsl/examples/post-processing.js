@@ -137,7 +137,7 @@ function createScene() {
 
 function setupPostProcessing() {
   // Create post-processing instance
-  postProcessing = new THREE.PostProcessing(renderer);
+  postProcessing = new THREE.RenderPipeline(renderer);
 
   // Create scene pass
   const scenePass = pass(scene, camera);

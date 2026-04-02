@@ -195,9 +195,12 @@ myFn();  // uses defaults
 ## Compute Shaders
 
 ```javascript
-// Storage buffers
+// Storage buffers (read-write)
 const positions = instancedArray(count, 'vec3');
 const values = instancedArray(count, 'float');
+
+// Read-only storage buffers
+const lookupTable = attributeArray(data, 'float');
 
 // Compute shader
 const compute = Fn(() => {
@@ -205,9 +208,11 @@ const compute = Fn(() => {
   pos.addAssign(vec3(0.01, 0, 0));
 })().compute(count);
 
-// Execute
-await renderer.computeAsync(compute);  // Once
-renderer.compute(compute);              // Each frame
+// Execute (after await renderer.init())
+renderer.compute(compute);
+
+// Workgroup size
+const compute2 = Fn(() => { /* ... */ })().compute(count, [64]);
 ```
 
 ## Post-Processing
@@ -216,17 +221,17 @@ renderer.compute(compute);              // Each frame
 import { pass } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
-// Setup
-const postProcessing = new THREE.PostProcessing(renderer);
+// Setup (RenderPipeline replaced PostProcessing in r183)
+const renderPipeline = new THREE.RenderPipeline(renderer);
 const scenePass = pass(scene, camera);
 const color = scenePass.getTextureNode('output');
 
 // Apply effects
 const bloomPass = bloom(color);
-postProcessing.outputNode = color.add(bloomPass);
+renderPipeline.outputNode = color.add(bloomPass);
 
 // Render
-postProcessing.render();
+renderPipeline.render();
 ```
 
 ## Common Patterns
