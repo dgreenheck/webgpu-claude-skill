@@ -29,7 +29,10 @@ import {
   instanceIndex,
   hash,
   time,
-  deltaTime
+  deltaTime,
+  select,  // Use for conditional value selection
+  max,
+  clamp
 } from 'three/tsl';
 
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -67,6 +70,41 @@ const dt = uniform(0);
 // ============================================
 // COMPUTE SHADERS
 // ============================================
+
+/**
+ * ⚠️  CRITICAL TSL GOTCHA - READ THIS FIRST!
+ *
+ * TSL intercepts PROPERTY ASSIGNMENTS on nodes, but NOT JS variable reassignment.
+ *
+ *   // ✅ WORKS - Property assignment on vec3 node
+ *   const result = vec3(position);
+ *   If(result.y.greaterThan(limit), () => {
+ *     result.y = limit;  // TSL intercepts property setters!
+ *   });
+ *
+ *   // ❌ WRONG - JS variable reassignment (scalars have no .x/.y properties)
+ *   let value = buffer.element(index).toFloat();
+ *   If(condition, () => {
+ *     value = value.add(1.0);  // JS reassignment - TSL can't see this!
+ *   });
+ *   buffer.element(index).assign(value);  // Uses ORIGINAL node!
+ *
+ * Solutions for scalars:
+ *
+ *   // ✅ Use select() for conditional values
+ *   const newValue = select(condition, valueIfTrue, valueIfFalse);
+ *
+ *   // ✅ Use .toVar() for mutable scalars
+ *   const value = buffer.element(index).toVar();
+ *   If(condition, () => {
+ *     value.assign(value.add(1.0));  // Works with .toVar()!
+ *   });
+ *
+ *   // ✅ Use direct .assign() on buffer elements
+ *   If(condition, () => {
+ *     element.assign(element.add(1.0));
+ *   });
+ */
 
 /**
  * Initialize particles

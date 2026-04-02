@@ -194,12 +194,56 @@ myProp.assign(vec3(1, 0, 0));
 
 ## Control Flow
 
+### ⚠️ CRITICAL: Property Assignment vs Variable Reassignment
+
+**TSL intercepts property assignments on nodes, but NOT JavaScript variable reassignment.**
+
+| Pattern | Works? | Why |
+|---------|--------|-----|
+| `node.y = value` | ✅ | Property setter - TSL intercepts |
+| `node.x.assign(value)` | ✅ | TSL method call |
+| `variable = variable.add(1)` | ❌ | JS variable reassignment |
+
+**This WORKS (vec3 property assignment):**
+```javascript
+const result = vec3(position);
+If(result.y.greaterThan(limit), () => {
+  result.y = limit;  // ✅ Property assignment - TSL intercepts!
+});
+```
+
+**This DOES NOT work (scalar variable reassignment):**
+```javascript
+let value = buffer.element(index).toFloat();  // Scalar - no .x/.y properties
+If(condition, () => {
+  value = value.add(1.0);  // ❌ JS variable reassignment - TSL can't see this!
+});
+return value;  // Returns ORIGINAL node!
+```
+
+**Solutions for scalars:**
+```javascript
+// ✅ Use select() for conditional values
+const result = select(condition, valueIfTrue, valueIfFalse);
+
+// ✅ Use .toVar() for mutable variables
+const value = buffer.element(index).toVar();
+If(condition, () => {
+  value.assign(value.add(1.0));  // Works with .toVar()!
+});
+
+// ✅ Use direct .assign() on buffer elements
+If(condition, () => {
+  element.assign(element.add(1.0));  // Direct buffer writes work!
+});
+```
+
 ### Conditionals
 
 ```javascript
 import { If, select } from 'three/tsl';
 
-// If-ElseIf-Else
+// If-ElseIf-Else (use with .toVar() or direct .assign())
 const result = vec3(0).toVar();
 
 If(value.greaterThan(0.5), () => {
@@ -210,7 +254,7 @@ If(value.greaterThan(0.5), () => {
   result.assign(vec3(0, 0, 1));  // Blue
 });
 
-// Ternary operator (select)
+// Ternary operator (select) - PREFERRED for simple conditionals
 const color = select(
   condition,           // if true
   vec3(1, 0, 0),      // return this

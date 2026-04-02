@@ -2,6 +2,135 @@
 
 Compute shaders run on the GPU for parallel processing of data. TSL makes them accessible through JavaScript.
 
+## CRITICAL: TSL Node Property Assignment vs JS Variable Reassignment
+
+**TSL can intercept property assignments on nodes, but NOT JavaScript variable reassignment.**
+
+### What Works vs What Doesn't
+
+| Pattern | Works? | Why |
+|---------|--------|-----|
+| `node.y = value` | ✅ | Property setter - TSL intercepts |
+| `node.x.assign(value)` | ✅ | TSL method call |
+| `buffer.element(i).assign(v)` | ✅ | TSL method call |
+| `variable = variable.add(1)` | ❌ | JS variable reassignment - TSL can't see it |
+
+### This WORKS (property assignment on vec3):
+
+```javascript
+// ✅ CORRECT - Property assignment on node object
+const computeShader = Fn(() => {
+  const result = vec3(position);
+
+  If(result.y.greaterThan(limit), () => {
+    result.y = limit;  // TSL intercepts property setters!
+  });
+
+  return result;
+})();
+```
+
+### This does NOT work (JS variable reassignment):
+
+```javascript
+// ❌ WRONG - JavaScript variable reassignment inside If()
+const computeShader = Fn(() => {
+  let value = buffer.element(index).toFloat();  // Scalar float - no .x/.y properties
+
+  If(condition, () => {
+    value = value.add(1.0);  // JS reassigns variable to NEW node - TSL can't track this!
+  });
+
+  buffer.element(index).assign(value);  // Uses ORIGINAL node, not the add result!
+})().compute(count);
+```
+
+**Why it fails:** `value = value.add(1.0)` creates a new TSL node and reassigns the JavaScript variable to point to it. But TSL can't intercept JavaScript variable assignment - it can only intercept property setters and method calls on TSL node objects. Since `value` is a scalar float (no `.x`/`.y` properties), you can't use property assignment.
+
+### Solution 1: Use `select()` for Conditional Values
+
+```javascript
+// ✅ CORRECT - Use select() for inline conditionals
+import { select } from 'three/tsl';
+
+const computeShader = Fn(() => {
+  const currentValue = buffer.element(index).toFloat();
+
+  // select(condition, valueIfTrue, valueIfFalse)
+  const newValue = select(
+    condition,
+    currentValue.add(1.0),  // If true
+    currentValue            // If false
+  );
+
+  buffer.element(index).assign(newValue);
+})().compute(count);
+```
+
+### Solution 2: Use `.assign()` Directly on Buffer Elements Inside If()
+
+```javascript
+// ✅ CORRECT - Direct buffer assignment inside If() works
+const computeShader = Fn(() => {
+  const element = buffer.element(index);
+
+  If(condition, () => {
+    // Direct assignment to buffer element works!
+    element.assign(element.add(1.0));
+  });
+})().compute(count);
+```
+
+### Solution 3: Use `.toVar()` for Mutable Variables
+
+```javascript
+// ✅ CORRECT - Use .toVar() for variables that need mutation
+const computeShader = Fn(() => {
+  // .toVar() creates a proper GPU variable that can be reassigned
+  const value = buffer.element(index).toFloat().toVar();
+
+  If(condition, () => {
+    value.assign(value.add(1.0));  // This works with .toVar()!
+  });
+
+  buffer.element(index).assign(value);
+})().compute(count);
+```
+
+### Quick Reference: When to Use What
+
+| Pattern | Use Case |
+|---------|----------|
+| `select(cond, a, b)` | Simple conditional value selection |
+| `element.assign()` inside `If()` | Direct buffer writes |
+| `.toVar()` + `assign()` | Complex logic with multiple conditionals |
+| Regular `If()` with direct assigns | Multiple buffer element updates |
+
+### Example: Correct Stamp/Fade Pattern
+
+```javascript
+// ✅ CORRECT implementation of conditional stamping
+const computeShader = Fn(() => {
+  const currentFoam = foamBuffer.element(index).toFloat();
+
+  // Calculate distance
+  const dist = worldPos.distance(stampPos);
+  const radius = float(50.0);
+
+  // Calculate falloff (will be 0 outside radius due to select)
+  const falloff = float(1.0).sub(dist.div(radius));
+
+  // Use select() - returns falloff if inside radius, 0 if outside
+  const foamToAdd = select(dist.lessThan(radius), falloff, float(0.0));
+
+  // Combine and write
+  const newFoam = max(currentFoam, foamToAdd);
+  foamBuffer.element(index).assign(clamp(newFoam, 0.0, 1.0));
+})().compute(bufferSize);
+```
+
+---
+
 ## Basic Setup
 
 ```javascript
