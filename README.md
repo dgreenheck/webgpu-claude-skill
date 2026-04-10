@@ -17,6 +17,8 @@ This skill provides Claude with comprehensive knowledge for:
 
 ## Installation
 
+This repo ships the same content in two formats so it works in both Claude Code (as an Agent Skill) and Cursor (as project rules). The Claude skill under `skills/` is the source of truth; the Cursor rules under `.cursor/rules/` are thin shims that `@file`-reference those same docs, so edits flow through automatically.
+
 ### Claude Code
 
 ```bash
@@ -24,11 +26,31 @@ This skill provides Claude with comprehensive knowledge for:
 /skill install webgpu-threejs-tsl@<your-github-username>/webgpu-claude-skill
 ```
 
-### Manual Installation
-
-Copy the `skills/webgpu-threejs-tsl` folder to:
+Or manually copy the `skills/webgpu-threejs-tsl` folder to:
 - **Global**: `~/.claude/skills/`
 - **Project**: `<project>/.claude/skills/`
+
+### Cursor
+
+Clone this repo and open it directly — Cursor picks up `.cursor/rules/` automatically.
+
+To use the rules in your own project, copy **both** directories into your project root, preserving the paths:
+
+```
+your-project/
+├── .cursor/rules/              # from this repo
+└── skills/webgpu-threejs-tsl/  # from this repo (referenced by the rules)
+```
+
+The `.mdc` files use `@file` references pointing at `skills/webgpu-threejs-tsl/...`, so the `skills/` directory must travel with them. If you'd rather not keep the `skills/` folder, inline the referenced content into each `.mdc` file.
+
+The rules are scoped by globs and auto-attach only on relevant files:
+
+- `webgpu-threejs-tsl.mdc` — entry point, JS/TS files
+- `compute-shaders.mdc` — files matching `*compute*` or `*particle*`
+- `post-processing.mdc` — files matching `*post*`, `*effect*`, `*bloom*`
+- `wgsl-integration.mdc` — `.wgsl` files and `*wgsl*` JS/TS
+- `device-loss-and-limits.mdc` — files matching `*renderer*` or `*webgpu*`
 
 ## Skill Structure
 
