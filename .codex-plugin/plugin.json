@@ -1,0 +1,29 @@
+{
+  "name": "webgpu-threejs-tsl",
+  "version": "1.0.0",
+  "description": "Agent skill for WebGPU-enabled Three.js development with TSL.",
+  "author": {
+    "name": "Dan Greenheck",
+    "url": "https://github.com/dgreenheck"
+  },
+  "homepage": "https://github.com/dgreenheck/webgpu-claude-skill",
+  "repository": "https://github.com/dgreenheck/webgpu-claude-skill",
+  "license": "MIT",
+  "keywords": ["webgpu", "three.js", "tsl", "shaders", "compute", "agent-skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WebGPU Three.js TSL",
+    "shortDescription": "Build WebGPU Three.js apps with TSL.",
+    "longDescription": "Guidance, references, examples, and templates for WebGPU renderer setup, node materials, compute shaders, post-processing, WGSL integration, and device-loss handling.",
+    "developerName": "Dan Greenheck",
+    "category": "Development",
+    "capabilities": ["Code", "Graphics", "Reference"],
+    "websiteURL": "https://github.com/dgreenheck/webgpu-claude-skill",
+    "defaultPrompt": [
+      "Set up a minimal Three.js WebGPU scene.",
+      "Convert this shader idea into TSL.",
+      "Review this WebGPU device-loss handling."
+    ],
+    "brandColor": "#0EA5E9"
+  }
+}

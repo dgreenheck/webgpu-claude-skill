@@ -52,6 +52,17 @@ The rules are scoped by globs and auto-attach only on relevant files:
 - `wgsl-integration.mdc` — `.wgsl` files and `*wgsl*` JS/TS
 - `device-loss-and-limits.mdc` — files matching `*renderer*` or `*webgpu*`
 
+### Codex
+
+This repository includes Codex plugin metadata for the same `skills/` source of
+truth:
+
+```bash
+codex plugin marketplace add https://github.com/dgreenheck/webgpu-claude-skill
+```
+
+Then install **WebGPU Three.js TSL** from the Codex Plugins UI.
+
 ## Skill Structure
 
 ```
@@ -145,6 +156,19 @@ material.emissiveNode = Fn(() => {
 
 - **r178+**: `PI2` deprecated (use `TWO_PI`), `transformedNormalView/World` renamed to `normalView/World`
 - **r171+**: Stable TSL API, requires `three/webgpu` import map entry
+
+## Evals and production telemetry
+
+The `evals/webgpu-threejs-tsl/` directory provides a small human-review eval set
+for renderer setup, TSL material generation, and device-loss review. The cases
+are harness-neutral so the same plugin behavior can be checked in Claude Code,
+Codex, Cursor, or another agent workspace.
+
+If you publish the plugin through Telvine, keep telemetry metadata-only:
+`skill.invocation.start`, `skill.invocation.end`, and `skill.invocation.error`
+for skill behavior, plus `plugin.component.invoked` and
+`plugin.component.error` for non-skill components. Do not emit prompts, source
+files, generated code, tool arguments, browser captures, or model outputs.
 
 ## Resources
 
