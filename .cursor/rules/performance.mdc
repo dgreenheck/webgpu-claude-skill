@@ -1,0 +1,17 @@
+---
+description: Measured WebGPU Three.js performance lessons. Use when adding lights or materials to a scene, optimizing startup or load time, debugging slow pipeline compilation, fixing progressive slowdowns across reloads, or tuning the WebGL2 fallback path.
+globs: **/*renderer*.{js,ts,jsx,tsx},**/*webgpu*.{js,ts,jsx,tsx},**/*light*.{js,ts,jsx,tsx},**/*material*.{js,ts,jsx,tsx}
+alwaysApply: false
+---
+
+# WebGPU Three.js Performance Lessons
+
+Measured on a production scene (three r185, Dawn D3D12). The short version:
+
+- Startup pipeline compilation freezes the main thread; use `passNode.compileAsync(renderer)` after setting `scene.environment`, with frustum culling disabled during the compile.
+- Every non-batched light adds code to every shader program. Batch shadowless lights with `DynamicLighting`; avoid `RectAreaLight`; cast shadows from SpotLights only (a PointLight shadow is a 6-face cube, ~6× the cost).
+- Colors and scalar values are uniforms and share programs; map presence, `side`, Physical-material features, skinning, instancing, and `receiveShadow` fork new ones. Use `material.clone()` for tint variants.
+- `renderer.dispose()` does not destroy the `GPUDevice`; destroy it explicitly and hook `pagehide`, or hot reloads leak devices and every startup gets slower.
+- The WebGL2 fallback (no secure context, no WebGPU) compiles synchronously and needs a lighter path: fewer shadows, less overdraw, capped pixelRatio.
+
+@skills/webgpu-threejs-tsl/docs/performance-lessons.md
