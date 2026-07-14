@@ -3,7 +3,8 @@
 Measured lessons from a production WebGPU Three.js scene (~600 meshes, ~190
 materials, 26 lights, MRT bloom). Every claim was verified on three r185.
 Numbers come from an Intel Gen12 iGPU via Dawn D3D12: ratios transfer,
-absolutes vary. Last updated: 2026-07-14.
+absolutes vary. Last updated: 2026-07-14 (second pass — six controlled
+experiments, adversarially verified).
 
 ## 1. Startup: pipeline compilation is THE cost
 
@@ -33,11 +34,25 @@ absolutes vary. Last updated: 2026-07-14.
   thread idle during the stall). With pipelines precompiled the sweep
   only warms bind groups/uniform buffers; 8 steps at 45° cover a fov-60 16:9
   camera with overlap.
+- After compiling, the sweep's cost is a step function, not linear: on this
+  scene the segment was flat from 8→4 steps (~2600ms both), fell off a cliff
+  from 4→2 (~2650→~780ms, −70%), and 2 vs 0 overlapped. That says where the
+  cost lives, NOT that fewer steps are free — the safe minimum (no turn frame
+  over 50ms) was only verified for one rotation direction. Establish the safe
+  minimum across all turn directions before cutting steps.
 - **Chrome caches compiled pipelines on disk per browser profile**
   (`DawnWebGPUCache` in the profile dir), automatically, no flags. Measured:
   first visit 14s of compile → second visit 1.3s (−91%). Incognito/private
   windows and cleared profiles pay full price every time. Design first-visit
   UX for the worst case.
+  - The cache is keyed **per program/variant**, not per file or session, so
+    day-to-day dev edits mostly stay warm. Measured: a uniform/color change
+    (same WGSL) does not invalidate anything (~1.4s compile, ~10× under the
+    ~11.4s cold run); a change that forks the shader (`side: DoubleSide`)
+    recompiles only that variant (+350-575ms, not the full ~11s); reverting
+    the fork finds the original still cached (no LRU eviction seen). Editing
+    uniforms during development costs nothing; only structural forks pay,
+    and they pay little.
 
 ## 2. Lights are shader code, not just runtime cost
 
@@ -50,6 +65,15 @@ absolutes vary. Last updated: 2026-07-14.
   measured, image identical). Mind the `maxPointLights` etc. caps: lights
   beyond the cap silently fall back to the unrolled path. `ClusteredLighting`
   exists for many-light scenes with depth complexity.
+- **`ClusteredLighting` vs `DynamicLighting` is a startup-vs-runtime trade,
+  measured.** At 35 lights, swapping to `ClusteredLighting` compiled +12
+  programs (78→90) and +440KB of WGSL (deterministic, 2/2 runs) and started
+  slower every time — but nearly doubled resting FPS (~35 → ~55-66 on the
+  iGPU, corroborated independently by the app's stats overlay) with an
+  image-identical scene. Treat magnitudes as order-of-magnitude (thermal
+  drift); the cross-over light count wasn't measured. Rule of thumb:
+  Clustered pays a heavier compile to win runtime; if startup is your
+  bottleneck and lights fit the batch caps, DynamicLighting starts faster.
 - **Not batchable**: shadow-casting lights, `RectAreaLight`, projected spots
   (`.map`), node lights. They stay unrolled in EVERY program.
 - **`RectAreaLight` is the most expensive light in three.js**: LTC
@@ -88,6 +112,12 @@ Programs dedupe by the **generated WGSL string** (`Pipelines.js` keys
   own program), vertex colors, flat shading, fog on/off, and
   `object.receiveShadow` (an object-level flag: the same material splits
   into with/without shadow-sampling variants).
+- Because `receiveShadow` is per-object, a material shared across objects
+  with **mixed** flags forks into both variants. Homogenizing the flag
+  collapsed the split on this scene: −4 programs (78→74), −3 pipelines,
+  deterministic in 2/2 runs, no new contact shadows in the captured views.
+  Census-only win — the compile-time effect fell below the noise floor.
+  Treat it as variant-count hygiene, not a compile-time lever.
 - **Fork a pipeline but not a program**: `transparent`/blending, cull mode,
   depth state, MRT target formats, sample count.
 - The classic WebGL trick of giving every material a dummy 1×1 white map to
@@ -110,9 +140,14 @@ Programs dedupe by the **generated WGSL string** (`Pipelines.js` keys
   discs with false parallax in glossy floors. Hide them during capture too,
   and dim lights whose glow would be reflected where real occluders (a bar
   counter) should block them: envMaps know nothing about occlusion.
-- A `scene.overrideMaterial` during capture collapses all capture variants to
-  ~1-2 programs if reflections can afford being flat (untested visually: the
-  reflection loses material nuance; try before shipping).
+- A `scene.overrideMaterial` set only during the cube-capture pass collapses
+  the capture-pass variants — measured: 78→71 programs (−7), programsSize
+  −23%, deterministic in 2/2 runs, compile segment ~−34% (~−4s) and total
+  startup ~−30%. Cheaper visually than feared: at a floor-grazing angle where
+  the reflection would show it, override vs control captures were
+  indistinguishable. Other angles and higher resolutions untested, so eyeball
+  it before shipping — but "the reflection loses material nuance" was not
+  observed here.
 
 ## 5. Lifecycle: the leak that slows every reload
 
@@ -135,12 +170,19 @@ Programs dedupe by the **generated WGSL string** (`Pipelines.js` keys
   WILL test over LAN or in browsers without WebGPU and report "it's slow".
 - Firefox/private windows: private mode may disable GPU acceleration
   (anti-fingerprinting): don't tune for numbers measured there.
-- The fallback has **no async pipeline compile** (compiles synchronously,
-  spread across first renders, measured 2-4× the WebGPU startup) and far
-  less headroom. Budget a "fallback diet" branch: shadows off **before**
-  compiling (programs are born without PCF code; measured 35→60fps), hide
-  big translucent overdraw geometry (visible light cones: −35% load time),
-  cap pixelRatio (DPR 2 sank a HiDPI laptop to 16fps; 1.0-1.5 is the range).
+- The fallback **does have async pipeline compile**: three's WebGL2 backend
+  routes `compileAsync` through `KHR_parallel_shader_compile`, and using it
+  matters as much as on WebGPU. Measured with WebGL2 forced: with
+  compileAsync the main thread froze ~3.7-4.4s during compile; the
+  synchronous path froze it a sustained ~9-10s (+4.6 to +6.2s of extra
+  block, 2/2 runs, two independent signals). As on WebGPU, async buys a
+  live thread, not less wall-clock — the cost reorganizes across segments.
+- The fallback still compiles slower overall (2-4× the WebGPU startup) and
+  has far less headroom. Budget a "fallback diet" branch: shadows off
+  **before** compiling (programs are born without PCF code; measured
+  35→60fps), hide big translucent overdraw geometry (visible light cones:
+  −35% load time), cap pixelRatio (DPR 2 sank a HiDPI laptop to 16fps;
+  1.0-1.5 is the range).
 - Modern headless Chrome exposes WebGPU by default. To test the fallback,
   hide the API: `page.evaluateOnNewDocument(() => Object.defineProperty(
   navigator, 'gpu', { get: () => undefined }))`.
