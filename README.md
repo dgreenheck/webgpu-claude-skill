@@ -64,7 +64,8 @@ skills/webgpu-threejs-tsl/
 │   ├── compute-shaders.md      # GPU compute documentation
 │   ├── post-processing.md      # Built-in and custom effects
 │   ├── wgsl-integration.md     # Custom WGSL functions
-│   └── device-loss.md          # GPU device loss handling and recovery
+│   ├── device-loss.md          # GPU device loss handling and recovery
+│   └── performance-lessons.md  # Measured performance lessons from production
 ├── examples/
 │   ├── basic-setup.js          # Minimal WebGPU project
 │   ├── custom-material.js      # Custom shader material

@@ -1,6 +1,6 @@
 ---
 name: webgpu-threejs-tsl
-description: Comprehensive guide for developing WebGPU-enabled Three.js applications using TSL (Three.js Shading Language). Covers WebGPU renderer setup, TSL syntax and node materials, compute shaders, post-processing effects, and WGSL integration. Use this skill when working with Three.js WebGPU, TSL shaders, node materials, or GPU compute in Three.js.
+description: Comprehensive guide for developing WebGPU-enabled Three.js applications using TSL (Three.js Shading Language). Covers WebGPU renderer setup, TSL syntax and node materials, compute shaders, post-processing effects, WGSL integration, and measured performance lessons (pipeline compilation, shader program forking, light batching). Use this skill when working with Three.js WebGPU, TSL shaders, node materials, GPU compute, or optimizing WebGPU startup and runtime performance.
 ---
 
 # WebGPU Three.js with TSL
@@ -30,6 +30,7 @@ material.colorNode = color(0xff0000).mul(oscSine(time));
 - `docs/wgsl-integration.md` - Custom WGSL functions
 - `docs/device-loss.md` - Handling GPU device loss and recovery
 - `docs/limits-and-features.md` - WebGPU device limits and optional features
+- `docs/performance-lessons.md` - Measured performance lessons from production: async pipeline compilation, what forks shader programs, light batching, Dawn's disk cache, GPUDevice leaks, the WebGL2 fallback
 
 ### Examples
 - `examples/basic-setup.js` - Minimal WebGPU project
